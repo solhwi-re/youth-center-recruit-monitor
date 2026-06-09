@@ -1,0 +1,55 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Youth Center Recruit Monitor",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://YOUR_RENDER_SERVICE.onrender.com"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "서비스 상태와 DB 센터 수 확인",
+        "responses": {"200": {"description": "OK"}}
+      }
+    },
+    "/scan": {
+      "post": {
+        "operationId": "scanRecruitPosts",
+        "summary": "청년센터 홈페이지에서 채용공고 후보를 검색",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 252}},
+          {"name": "X-Run-Secret", "in": "header", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {"200": {"description": "검색 결과"}}
+      }
+    },
+    "/run": {
+      "post": {
+        "operationId": "runRecruitMonitor",
+        "summary": "신규 채용공고 검색 후 필요 시 이메일 발송",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 252}},
+          {"name": "send_email", "in": "query", "schema": {"type": "boolean", "default": true}},
+          {"name": "X-Run-Secret", "in": "header", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {"200": {"description": "실행 결과"}}
+      }
+    },
+    "/latest": {
+      "get": {
+        "operationId": "latestRecruitPostsText",
+        "summary": "최근 채용공고 후보를 텍스트 형식으로 조회",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 30}},
+          {"name": "X-Run-Secret", "in": "header", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {"200": {"description": "텍스트 결과"}}
+      }
+    }
+  }
+}
