@@ -1,7 +1,3 @@
-
-`config.py` 전체를 아래 내용으로 **통째로 교체**해주세요. 코드블록 표시 없이, 내용만 넣으시면 됩니다.
-
-```python
 import os
 from pathlib import Path
 
