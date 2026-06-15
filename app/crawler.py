@@ -58,21 +58,10 @@ def is_external_or_social(url: str) -> bool:
 def is_bad_url(url: str) -> bool:
     lowered = (url or "").lower()
     return any(x in lowered for x in [
-        "down.html",
-        "download",
-        "filedown",
-        "file_down",
-        "post_file_download",
-        "bbsmsgfiledown",
-        ".pdf",
-        ".hwp",
-        ".hwpx",
-        ".png",
-        ".jpg",
-        ".jpeg",
-        "work24.go.kr",
-        "jobaba.net",
-        "apply.jobaba",
+        "down.html", "download", "filedown", "file_down",
+        "post_file_download", "bbsmsgfiledown",
+        ".pdf", ".hwp", ".hwpx", ".png", ".jpg", ".jpeg",
+        "work24.go.kr", "jobaba.net", "apply.jobaba",
     ])
 
 
@@ -143,7 +132,9 @@ def is_likely_recruit_post(title: str, url: str) -> bool:
         "품질관리", "생산", "CNC", "조리파트", "골프클럽", "스파비스",
         "전임의사", "공장", "품질보증", "환경관리원", "청소지원인력",
         "청소환경관리", "하천관리원", "공원관리", "안전경비원",
-        "대체교사",
+        "대체교사", "photo file", "photo", "file",
+        "~01", "~02", "~03", "~04", "~05", "~06",
+        "~07", "~08", "~09", "~10", "~11", "~12",
     ]
     if any(bad in compact for bad in bad_signals):
         return False
@@ -210,12 +201,11 @@ def extract_candidate_links(base_url: str, html: str) -> list[tuple[str, str]]:
 
     for title, url in links:
         normalized = normalize_post_url(url)
-        key = normalized
 
-        if key in seen:
+        if normalized in seen:
             continue
 
-        seen.add(key)
+        seen.add(normalized)
         unique.append((title, normalized))
 
     return unique[:30]
@@ -240,6 +230,14 @@ def make_post(center: Center, title: str, url: str, matched: str | None) -> Recr
         source="homepage",
         matched_keyword=matched,
     )
+
+
+def make_title_key(post: RecruitPost) -> str:
+    title = re.sub(r"\s+", "", post.title.lower())
+    title = re.sub(r"\([^)]*\)", "", title)
+    title = re.sub(r"\[[^\]]*\]", "", title)
+    title = re.sub(r"photo|file|new|공지사항", "", title)
+    return f"{post.center_name}:{title[:60]}"
 
 
 def scan_center_homepage(center: Center) -> list[RecruitPost]:
@@ -280,7 +278,7 @@ def scan_center_homepage(center: Center) -> list[RecruitPost]:
     unique = {}
 
     for post in posts:
-        key = normalize_post_url(post.url)
+        key = make_title_key(post)
         unique.setdefault(key, post)
 
     return list(unique.values())
