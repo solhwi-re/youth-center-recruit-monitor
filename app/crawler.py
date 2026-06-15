@@ -277,11 +277,11 @@ def scan_center_homepage(center: Center) -> list[RecruitPost]:
 
     unique = {}
 
-    for post in posts:
-        key = make_title_key(post)
-        unique.setdefault(key, post)
+     for post in posts:
+         key = normalize_post_url(post.url)
+         unique.setdefault(key, post)
 
-    return list(unique.values())
+     return list(unique.values())
 
 
 def scan_centers(centers: list[Center], limit: int | None = None) -> list[RecruitPost]:
