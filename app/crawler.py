@@ -25,6 +25,7 @@ def normalize_post_url(url: str) -> str:
             "page", "offset", "sk", "sw", "category", "cate1",
             "search_first_subject", "list_mode", "auto_frame", "me_popup",
             "from", "fromNxList", "searchType", "placePath", "entry",
+            "mNum", "sNum", "cate_sub_idx", "me_co",
         }
 
         query_items = []
@@ -128,7 +129,7 @@ def is_likely_recruit_post(title: str, url: str) -> bool:
     if any(x in compact for x in result_words):
         return False
 
-    if any(year in compact for year in ["2024", "2023", "2022", "2021"]):
+    if any(year in compact for year in ["2025", "2024", "2023", "2022", "2021"]):
         return False
 
     bad_signals = [
