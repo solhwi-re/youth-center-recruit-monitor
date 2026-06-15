@@ -18,9 +18,6 @@ def normalize_url(url: str) -> str:
 
 
 def normalize_post_url(url: str) -> str:
-    """
-    같은 게시글인데 검색 파라미터만 다른 URL을 최대한 같은 URL로 정리합니다.
-    """
     try:
         parsed = urlparse(url)
         remove_keys = {
@@ -72,6 +69,9 @@ def is_bad_url(url: str) -> bool:
         ".png",
         ".jpg",
         ".jpeg",
+        "work24.go.kr",
+        "jobaba.net",
+        "apply.jobaba",
     ])
 
 
@@ -85,19 +85,34 @@ def is_generic_menu_title(title: str) -> bool:
 
 def keyword_hit(text: str) -> tuple[bool, str | None]:
     compact = re.sub(r"\s+", " ", text or "")
+
+    result_words = [
+        "합격", "최종합격", "서류합격", "면접전형 결과", "면접 결과",
+        "필기시험 결과", "전형 결과", "결과 발표", "결과 공고",
+    ]
+    if any(x in compact for x in result_words):
+        return False, None
+
     for bad in EXCLUDE_KEYWORDS:
         if bad in compact:
             return False, None
+
+    center_related = [
+        "청년센터", "청년지원센터", "청년공간", "청년청", "청년마루",
+        "청년내일", "청년일삶센터", "청년지원매니저", "청년코디",
+        "청년시설", "청년뜰", "청년시청", "청년모아", "청년정주지원센터",
+        "청년사이", "청정지대", "청년가온마당", "유유기지",
+    ]
+
     for good in INCLUDE_KEYWORDS:
         if good in compact:
-            return True, good
+            if any(x in compact for x in center_related) or "청년" in compact:
+                return True, good
+
     return False, None
 
 
 def is_likely_recruit_post(title: str, url: str) -> bool:
-    """
-    실제 공고가 아닌 첨부파일, 메뉴, 후기, 일반 일자리 정보를 최대한 제외합니다.
-    """
     if is_bad_url(url):
         return False
 
@@ -106,7 +121,32 @@ def is_likely_recruit_post(title: str, url: str) -> bool:
 
     compact = re.sub(r"\s+", " ", title or "")
 
-    # 제목에 채용 의미가 아예 없고 '팀장/센터장/정규직/기간제' 같은 단어만 잡힌 경우 제외
+    result_words = [
+        "합격", "최종합격", "서류합격", "면접전형 결과", "면접 결과",
+        "필기시험 결과", "전형 결과", "결과 발표", "결과 공고",
+    ]
+    if any(x in compact for x in result_words):
+        return False
+
+    if any(year in compact for year in ["2024", "2023", "2022", "2021"]):
+        return False
+
+    bad_signals = [
+        "후기", "감사합니다", "지원사업", "장려금", "학자금", "장학금",
+        "취업 역량", "업무협약", "사업안내", "채용지원 모집중",
+        "청년정규직 내일지원사업", "기간제·파견근로자 출산전후휴가",
+        "통합채용", "통합 채용", "일자리", "구인", "워크넷", "워크24",
+        "jobaba", "잡아바", "공공기관 통합채용", "채용관",
+        "정신건강복지센터", "육아종합지원센터", "사회적경제지원센터",
+        "농촌활력지원센터", "농업기술센터", "보건소",
+        "품질관리", "생산", "CNC", "조리파트", "골프클럽", "스파비스",
+        "전임의사", "공장", "품질보증", "환경관리원", "청소지원인력",
+        "청소환경관리", "하천관리원", "공원관리", "안전경비원",
+        "대체교사",
+    ]
+    if any(bad in compact for bad in bad_signals):
+        return False
+
     recruit_signals = [
         "채용", "모집", "공고", "재공고", "직원", "근로자",
         "매니저", "코디", "전담인력", "청년지원매니저", "청년코디"
@@ -114,13 +154,13 @@ def is_likely_recruit_post(title: str, url: str) -> bool:
     if not any(signal in compact for signal in recruit_signals):
         return False
 
-    # 후기/사업/정책성 문구 제외 보강
-    bad_signals = [
-        "후기", "감사합니다", "지원사업", "장려금", "학자금", "장학금",
-        "취업 역량", "업무협약", "사업안내", "채용지원 모집중",
-        "청년정규직 내일지원사업", "기간제·파견근로자 출산전후휴가",
+    center_related = [
+        "청년센터", "청년지원센터", "청년공간", "청년청", "청년마루",
+        "청년내일", "청년일삶센터", "청년지원매니저", "청년코디",
+        "청년시설", "청년뜰", "청년시청", "청년모아", "청년정주지원센터",
+        "청년사이", "청정지대", "청년가온마당", "유유기지",
     ]
-    if any(bad in compact for bad in bad_signals):
+    if not (any(x in compact for x in center_related) or "청년" in compact):
         return False
 
     return True
