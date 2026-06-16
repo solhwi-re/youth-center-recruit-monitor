@@ -1,6 +1,3 @@
-네. 아래 app/crawler.py를 전체 교체해주세요.
-이 버전은 URL 정규화, 게시글 ID 기준 중복 제거, 제목 보조 중복 제거를 통합한 최종본입니다.
-
 from __future__ import annotations
 
 import re
