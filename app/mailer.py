@@ -1,3 +1,6 @@
+네, 이 파일이 맞습니다.
+재단 메일 호환을 위해 이모지 없이 텍스트형으로 바꾼 mailer.py 전문은 아래처럼 교체하시면 됩니다.
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -13,17 +16,23 @@ def format_posts(posts: list[RecruitPost]) -> str:
     if not posts:
         return "신규 채용공고가 발견되지 않았습니다."
 
-    lines = ["📢 신규 채용공고가 발견되었습니다.", ""]
+    lines = [
+        "[전국 청년센터 채용공고 알림]",
+        "",
+        "신규 채용공고가 발견되었습니다.",
+        "",
+    ]
 
     for p in posts:
         lines.extend([
-            f"📍 {p.region}",
-            f"🏢 {p.center_name}",
-            f"🏛️ 운영법인: {p.operator_name or '-'}",
-            f"📌 {p.title}",
-            f"🔗 {p.url}",
-            f"📍 출처: {p.source}",
+            f"[지역] {p.region}",
+            f"센터명 : {p.center_name}",
+            f"운영법인 : {p.operator_name or '-'}",
+            f"채용직무 : {p.title}",
+            f"링크 : {p.url}",
+            f"출처 : {p.source}",
             "────────────────────",
+            "",
         ])
 
     lines.append(f"총 {len(posts)}건")
