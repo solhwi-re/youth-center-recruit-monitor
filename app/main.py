@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
@@ -9,7 +11,7 @@ from .mailer import send_recruit_email, format_posts
 
 app = FastAPI(
     title="Youth Center Recruit Monitor",
-    version="1.0.0",
+    version="1.1.0",
     description="전국 청년센터 홈페이지 기반 채용공고 모니터링 API",
 )
 
@@ -17,6 +19,24 @@ app = FastAPI(
 def check_secret(x_run_secret: str | None):
     if RUN_SECRET and x_run_secret != RUN_SECRET:
         raise HTTPException(status_code=401, detail="Invalid RUN_SECRET")
+
+
+def get_scan_range(total_count: int, limit: int, start: int | None = None) -> tuple[int, int]:
+    if total_count <= 0:
+        return 0, 0
+
+    if limit <= 0:
+        limit = 80
+
+    if start is not None:
+        safe_start = max(0, min(start, total_count - 1))
+    else:
+        chunk_count = (total_count + limit - 1) // limit
+        day_index = date.today().toordinal() % chunk_count
+        safe_start = day_index * limit
+
+    safe_end = min(safe_start + limit, total_count)
+    return safe_start, safe_end
 
 
 @app.get("/health")
@@ -34,29 +54,52 @@ def centers(limit: int = Query(20, ge=1, le=300)):
 @app.post("/scan")
 def scan(
     limit: int = Query(MAX_CENTERS_PER_RUN, ge=1, le=300),
+    start: int | None = Query(None, ge=0),
     x_run_secret: str | None = Header(default=None),
 ):
     check_secret(x_run_secret)
+
     centers = load_centers()
-    posts = scan_centers(centers, limit=limit)
-    return {"count": len(posts), "results": [p.model_dump() for p in posts]}
+    scan_start, scan_end = get_scan_range(len(centers), limit, start)
+    target_centers = centers[scan_start:scan_end]
+
+    posts = scan_centers(target_centers)
+
+    return {
+        "scan_start": scan_start,
+        "scan_end": scan_end,
+        "scanned_centers": len(target_centers),
+        "found_count": len(posts),
+        "results": [p.model_dump() for p in posts],
+    }
 
 
 @app.post("/run")
 def run(
     limit: int = Query(MAX_CENTERS_PER_RUN, ge=1, le=300),
+    start: int | None = Query(None, ge=0),
     send_email: bool = Query(True),
     x_run_secret: str | None = Header(default=None),
 ):
     check_secret(x_run_secret)
+
     centers = load_centers()
-    posts = scan_centers(centers, limit=limit)
+    scan_start, scan_end = get_scan_range(len(centers), limit, start)
+    target_centers = centers[scan_start:scan_end]
+
+    posts = scan_centers(target_centers)
     new_posts = filter_new(posts)
+
     email_result = {"sent": False, "reason": "send_email=false"}
+
     if send_email and new_posts:
         email_result = send_recruit_email(new_posts)
+
     return {
-        "scanned_centers": min(limit, len(centers)),
+        "scan_start": scan_start,
+        "scan_end": scan_end,
+        "scanned_centers": len(target_centers),
+        "total_centers": len(centers),
         "found_count": len(posts),
         "new_count": len(new_posts),
         "email": email_result,
@@ -67,9 +110,14 @@ def run(
 @app.get("/latest", response_class=PlainTextResponse)
 def latest(
     limit: int = Query(30, ge=1, le=300),
+    start: int | None = Query(None, ge=0),
     x_run_secret: str | None = Header(default=None),
 ):
     check_secret(x_run_secret)
+
     centers = load_centers()
-    posts = scan_centers(centers, limit=limit)
+    scan_start, scan_end = get_scan_range(len(centers), limit, start)
+    target_centers = centers[scan_start:scan_end]
+
+    posts = scan_centers(target_centers)
     return format_posts(posts)
