@@ -1,7 +1,11 @@
+네. 아래 app/crawler.py를 전체 교체해주세요.
+이 버전은 URL 정규화, 게시글 ID 기준 중복 제거, 제목 보조 중복 제거를 통합한 최종본입니다.
+
 from __future__ import annotations
 
 import re
 from urllib.parse import urljoin, urlparse, urlunparse, parse_qsl, urlencode
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -26,32 +30,54 @@ def normalize_post_url(url: str) -> str:
             "search_first_subject", "list_mode", "auto_frame", "me_popup",
             "from", "fromNxList", "searchType", "placePath", "entry",
             "mNum", "sNum", "cate_sub_idx", "me_co",
+            "t", "board_no", "menuCd", "startPage", "key", "findvalue",
+            "board_category", "board_category2",
         }
 
         query_items = []
         for key, value in parse_qsl(parsed.query, keep_blank_values=True):
             if key in remove_keys:
                 continue
+            if value == "":
+                continue
             query_items.append((key, value))
 
-        new_query = urlencode(query_items, doseq=True)
+        query_items = sorted(query_items)
+
         return urlunparse((
             parsed.scheme,
             parsed.netloc,
             parsed.path,
             parsed.params,
-            new_query,
+            urlencode(query_items, doseq=True),
             "",
         ))
     except Exception:
         return url
 
 
+def extract_post_identity(url: str) -> str:
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+    id_keys = [
+        "idx", "wr_id", "uid", "id", "number", "msg_seq", "dataSid",
+        "boardNo", "seq", "no"
+    ]
+
+    for key in id_keys:
+        if key in query and query[key]:
+            return f"{parsed.netloc}:{parsed.path}:{key}:{query[key]}"
+
+    return normalize_post_url(url)
+
+
 def is_external_or_social(url: str) -> bool:
     lowered = url.lower()
     return any(x in lowered for x in [
-        "instagram.com", "facebook.com", "youtube.com", "map.naver.com", "naver.me",
-        "pf.kakao.com", "kakaotalk", "blog.naver.com"
+        "instagram.com", "facebook.com", "youtube.com",
+        "map.naver.com", "naver.me", "pf.kakao.com",
+        "kakaotalk", "blog.naver.com",
     ])
 
 
@@ -65,11 +91,29 @@ def is_bad_url(url: str) -> bool:
     ])
 
 
+def clean_title(title: str) -> str:
+    title = re.sub(r"\s+", " ", title or "").strip()
+    title = re.sub(r"\([^)]*\)", "", title)
+    title = re.sub(r"\[[^\]]*\]", "", title)
+    title = re.sub(r"photo file|photo|file|new|공지사항", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s+", " ", title).strip()
+    return title
+
+
+def make_title_key(center_name: str, title: str) -> str:
+    cleaned = clean_title(title).lower()
+    cleaned = re.sub(r"\d{4}[-./]\d{1,2}[-./]\d{1,2}", "", cleaned)
+    cleaned = re.sub(r"\d{4}년\s*\d{1,2}월\s*\d{1,2}일", "", cleaned)
+    cleaned = re.sub(r"\d{4}-\d{2}-\d{2}", "", cleaned)
+    cleaned = re.sub(r"\s+", "", cleaned)
+    return f"{center_name}:{cleaned[:70]}"
+
+
 def is_generic_menu_title(title: str) -> bool:
     compact = re.sub(r"\s+", "", title or "")
     return compact in {
-        "채용공고", "공고", "공지", "공지사항", "알림", "소식",
-        "새소식", "센터소식", "게시판", "열린마당"
+        "채용공고", "공고", "공지", "공지사항", "알림",
+        "소식", "새소식", "센터소식", "게시판", "열린마당",
     }
 
 
@@ -90,8 +134,9 @@ def keyword_hit(text: str) -> tuple[bool, str | None]:
     center_related = [
         "청년센터", "청년지원센터", "청년공간", "청년청", "청년마루",
         "청년내일", "청년일삶센터", "청년지원매니저", "청년코디",
-        "청년시설", "청년뜰", "청년시청", "청년모아", "청년정주지원센터",
-        "청년사이", "청정지대", "청년가온마당", "유유기지",
+        "청년시설", "청년뜰", "청년시청", "청년모아",
+        "청년정주지원센터", "청년사이", "청정지대",
+        "청년가온마당", "유유기지", "청년창조발전소",
     ]
 
     for good in INCLUDE_KEYWORDS:
@@ -111,20 +156,12 @@ def is_likely_recruit_post(title: str, url: str) -> bool:
 
     compact = re.sub(r"\s+", " ", title or "")
 
-    result_words = [
-        "합격", "최종합격", "서류합격", "면접전형 결과", "면접 결과",
-        "필기시험 결과", "전형 결과", "결과 발표", "결과 공고",
-    ]
-    if any(x in compact for x in result_words):
-        return False
-
     if any(year in compact for year in ["2025", "2024", "2023", "2022", "2021"]):
         return False
 
     bad_signals = [
         "후기", "감사합니다", "지원사업", "장려금", "학자금", "장학금",
         "취업 역량", "업무협약", "사업안내", "채용지원 모집중",
-        "청년정규직 내일지원사업", "기간제·파견근로자 출산전후휴가",
         "통합채용", "통합 채용", "일자리", "구인", "워크넷", "워크24",
         "jobaba", "잡아바", "공공기관 통합채용", "채용관",
         "정신건강복지센터", "육아종합지원센터", "사회적경제지원센터",
@@ -141,7 +178,7 @@ def is_likely_recruit_post(title: str, url: str) -> bool:
 
     recruit_signals = [
         "채용", "모집", "공고", "재공고", "직원", "근로자",
-        "매니저", "코디", "전담인력", "청년지원매니저", "청년코디"
+        "매니저", "코디", "전담인력", "청년지원매니저", "청년코디",
     ]
     if not any(signal in compact for signal in recruit_signals):
         return False
@@ -149,8 +186,9 @@ def is_likely_recruit_post(title: str, url: str) -> bool:
     center_related = [
         "청년센터", "청년지원센터", "청년공간", "청년청", "청년마루",
         "청년내일", "청년일삶센터", "청년지원매니저", "청년코디",
-        "청년시설", "청년뜰", "청년시청", "청년모아", "청년정주지원센터",
-        "청년사이", "청정지대", "청년가온마당", "유유기지",
+        "청년시설", "청년뜰", "청년시청", "청년모아",
+        "청년정주지원센터", "청년사이", "청정지대",
+        "청년가온마당", "유유기지", "청년창조발전소",
     ]
     if not (any(x in compact for x in center_related) or "청년" in compact):
         return False
@@ -201,11 +239,12 @@ def extract_candidate_links(base_url: str, html: str) -> list[tuple[str, str]]:
 
     for title, url in links:
         normalized = normalize_post_url(url)
+        identity = extract_post_identity(normalized)
 
-        if normalized in seen:
+        if identity in seen:
             continue
 
-        seen.add(normalized)
+        seen.add(identity)
         unique.append((title, normalized))
 
     return unique[:30]
@@ -225,19 +264,11 @@ def make_post(center: Center, title: str, url: str, matched: str | None) -> Recr
         region=f"{center.region1} {center.region2}".strip(),
         center_name=center.center_name,
         operator_name=center.operator_name,
-        title=title[:120],
+        title=clean_title(title)[:120],
         url=normalize_post_url(url),
         source="homepage",
         matched_keyword=matched,
     )
-
-
-def make_title_key(post: RecruitPost) -> str:
-    title = re.sub(r"\s+", "", post.title.lower())
-    title = re.sub(r"\([^)]*\)", "", title)
-    title = re.sub(r"\[[^\]]*\]", "", title)
-    title = re.sub(r"photo|file|new|공지사항", "", title)
-    return f"{post.center_name}:{title[:60]}"
 
 
 def scan_center_homepage(center: Center) -> list[RecruitPost]:
@@ -248,13 +279,11 @@ def scan_center_homepage(center: Center) -> list[RecruitPost]:
         return posts
 
     html = fetch(homepage)
-
     if not html:
         return posts
 
     for title, url in extract_candidate_links(homepage, html):
         hit, matched = keyword_hit(title)
-
         if hit and is_likely_recruit_post(title, url):
             posts.append(make_post(center, title, url, matched))
 
@@ -265,21 +294,25 @@ def scan_center_homepage(center: Center) -> list[RecruitPost]:
 
     for _, candidate_url in candidates[:8]:
         sub_html = fetch(candidate_url)
-
         if not sub_html:
             continue
 
         for title, url in extract_candidate_links(candidate_url, sub_html):
             hit, matched = keyword_hit(title)
-
             if hit and is_likely_recruit_post(title, url):
                 posts.append(make_post(center, title, url, matched))
 
     unique = {}
 
     for post in posts:
-        key = normalize_post_url(post.url)
-        unique.setdefault(key, post)
+        identity_key = extract_post_identity(post.url)
+        title_key = make_title_key(post.center_name, post.title)
+        key = f"{identity_key}|{title_key}"
+
+        if identity_key not in unique:
+            unique[identity_key] = post
+        elif title_key not in unique:
+            unique[title_key] = post
 
     return list(unique.values())
 
