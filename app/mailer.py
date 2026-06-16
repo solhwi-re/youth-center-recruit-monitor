@@ -1,6 +1,3 @@
-네, 이 파일이 맞습니다.
-재단 메일 호환을 위해 이모지 없이 텍스트형으로 바꾼 mailer.py 전문은 아래처럼 교체하시면 됩니다.
-
 from __future__ import annotations
 
 from datetime import datetime
