@@ -59,7 +59,7 @@ def extract_post_identity(url: str) -> str:
 
     id_keys = [
         "idx", "wr_id", "uid", "id", "number", "msg_seq", "dataSid",
-        "boardNo", "seq", "no"
+        "boardNo", "seq", "no",
     ]
 
     for key in id_keys:
@@ -300,16 +300,22 @@ def scan_center_homepage(center: Center) -> list[RecruitPost]:
                 posts.append(make_post(center, title, url, matched))
 
     unique = {}
+    seen_identities = set()
+    seen_titles = set()
 
     for post in posts:
         identity_key = extract_post_identity(post.url)
         title_key = make_title_key(post.center_name, post.title)
-        key = f"{identity_key}|{title_key}"
 
-        if identity_key not in unique:
-            unique[identity_key] = post
-        elif title_key not in unique:
-            unique[title_key] = post
+        if identity_key in seen_identities:
+            continue
+
+        if title_key in seen_titles:
+            continue
+
+        seen_identities.add(identity_key)
+        seen_titles.add(title_key)
+        unique[identity_key] = post
 
     return list(unique.values())
 
